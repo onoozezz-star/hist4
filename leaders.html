@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Рейтинг - Исторические Баталии</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="quiz-style.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <style>
+        .leaderboard-screen {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: var(--glass-shadow);
+            border: 1px solid var(--glass-border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .leaderboard-screen::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--glass-bg);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 0.8rem 1.5rem;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 500;
+            border: 1px solid var(--glass-border);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(-3px);
+            color: white;
+        }
+
+        .paragraphs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin: 3rem 0;
+        }
+
+        .paragraph-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: var(--glass-shadow);
+            transition: all 0.4s ease;
+            cursor: pointer;
+            border: 1px solid var(--glass-border);
+            position: relative;
+            height: 290px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .paragraph-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .paragraph-glow {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--primary), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 1;
+        }
+
+        .paragraph-card:hover .paragraph-glow {
+            opacity: 0.1;
+        }
+
+        .paragraph-image {
+            flex: 1;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .paragraph-image div {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: white;
+            transition: transform 0.3s ease;
+        }
+
+        .paragraph-card:hover .paragraph-image div {
+            transform: scale(1.05);
+        }
+
+        .paragraph-image::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 50%);
+            z-index: 1;
+        }
+
+        .paragraph-number {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            z-index: 2;
+        }
+
+        .paragraph-title {
+            padding: 1.5rem;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 700;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .leaderboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .page-title {
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--light), #E2E8F0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0;
+            font-weight: 800;
+        }
+
+        .best-result-badge {
+            background: linear-gradient(135deg, var(--success), var(--accent));
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .best-result-value {
+            font-size: 1.3rem;
+            font-weight: bold;
+        }
+
+        .best-result-class {
+            font-size: 1.1rem;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.3rem 0.8rem;
+            border-radius: 8px;
+        }
+
+        .leaderboard-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--glass-border);
+        }
+
+        .leader-header {
+            display: grid;
+            grid-template-columns: 80px 1fr 100px 100px;
+            gap: 1.5rem;
+            padding: 1.2rem 1.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            font-weight: 600;
+        }
+
+        .leader-item {
+            display: grid;
+            grid-template-columns: 80px 1fr 100px 100px;
+            gap: 1.5rem;
+            padding: 1.2rem 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .leader-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .leader-item:last-child {
+            border-bottom: none;
+        }
+
+        .leader-item.top-result {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 165, 0, 0.1));
+            border-left: 4px solid gold;
+        }
+
+        .leader-item.top-result.gold {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 165, 0, 0.15));
+            border-left: 4px solid #FFD700;
+        }
+
+        .leader-item.top-result.silver {
+            background: linear-gradient(135deg, rgba(192, 192, 192, 0.15), rgba(169, 169, 169, 0.15));
+            border-left: 4px solid #C0C0C0;
+        }
+
+        .rank {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .rank-number {
+            width: 40px;
+            height: 40px;
+            background: var(--glass-bg);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--glass-border);
+        }
+
+        .rank-1 .rank-number {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+            border: none;
+        }
+
+        .rank-2 .rank-number {
+            background: linear-gradient(135deg, #C0C0C0, #A9A9A9);
+            color: white;
+            border: none;
+        }
+
+        .rank-3 .rank-number {
+            background: linear-gradient(135deg, #CD7F32, #D2691E);
+            color: white;
+            border: none;
+        }
+
+        .rank-icon {
+            font-size: 1.5rem;
+        }
+
+        .score-info {
+            font-weight: 600;
+            color: white;
+            font-size: 1.1rem;
+        }
+
+        .class-info {
+            font-weight: 600;
+            color: var(--primary-light);
+            font-size: 1.1rem;
+        }
+
+        .time-info {
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 500;
+        }
+
+        .best-badge {
+            background: linear-gradient(135deg, var(--success), var(--primary));
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .normas-badge {
+            background: linear-gradient(135deg, var(--secondary), var(--secondary-dark));
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .no-results h3 {
+            margin-bottom: 1rem;
+            color: white;
+        }
+
+        .no-results .btn {
+            margin-top: 1rem;
+        }
+
+        .admin-panel {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--glass-border);
+            text-align: center;
+        }
+
+        .admin-btn {
+            background: rgba(239, 68, 68, 0.1);
+            color: rgba(239, 68, 68, 0.8);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .admin-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: rgba(239, 68, 68, 1);
+            transform: translateY(-2px);
+        }
+
+        .password-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .password-modal.active {
+            display: flex;
+        }
+
+        .password-content {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--glass-shadow);
+            border: 1px solid var(--glass-border);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .password-content h3 {
+            color: white;
+            margin-bottom: 1rem;
+        }
+
+        .password-input {
+            width: 100%;
+            padding: 1rem;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            margin-bottom: 1rem;
+            font-size: 1rem;
+        }
+
+        .password-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .password-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        @keyframes cardAppear {
+            from {
+                opacity: 0;
+                transform: translateY(30px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .paragraph-card {
+            animation: cardAppear 0.6s ease-out;
+        }
+
+        .paragraph-card:nth-child(1) { animation-delay: 0.1s; }
+        .paragraph-card:nth-child(2) { animation-delay: 0.2s; }
+        .paragraph-card:nth-child(3) { animation-delay: 0.3s; }
+
+        @media (max-width: 768px) {
+            .leaderboard-header {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+
+            .leader-header {
+                grid-template-columns: 60px 1fr 80px 80px;
+                gap: 1rem;
+                padding: 1rem;
+                font-size: 0.9rem;
+            }
+
+            .leader-item {
+                grid-template-columns: 60px 1fr 80px 80px;
+                gap: 1rem;
+                padding: 1rem;
+                font-size: 0.9rem;
+            }
+
+            .rank-number {
+                width: 35px;
+                height: 35px;
+                font-size: 1rem;
+            }
+
+            .paragraphs-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+
+            .paragraph-card {
+                height: 180px;
+            }
+
+            .paragraph-title {
+                padding: 1rem;
+                font-size: 1.1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Анимированный фон -->
+    <div class="animated-bg">
+        <div class="bg-shape shape-1"></div>
+        <div class="bg-shape shape-2"></div>
+        <div class="bg-shape shape-3"></div>
+        <div class="bg-shape shape-4"></div>
+    </div>
+
+    <!-- Плавающие частицы -->
+    <div class="floating-particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo" onclick="window.location.href='index.html'">
+                    <div class="logo-icon">
+                        <div class="logo-shine"></div>
+                        🏛️
+                    </div>
+                    <div class="logo-text">
+                        <h1>Викторины</h1>
+                        <p>11 класс - История и Обществоведение</p>
+                    </div>
+                </div>
+                <nav>
+                    <ul>
+                        <li><a href="index.html">Главная</a></li>
+                        <li><a href="quiz.html">Викторины</a></li>
+                        <li><a href="leaders.html" class="active">Таблица лидеров</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Режим выбора параграфа -->
+        <div id="quiz-selection-screen" class="screen active">
+            <div class="quiz-selection-header">
+                <h2>Рейтинг классов</h2>
+                <p>Выберите параграф для просмотра рейтинга. Лучшие результаты выделены золотым цветом!</p>
+            </div>
+
+            <div class="paragraphs-grid">
+                <div class="paragraph-card" onclick="showLeaderboard('paragraph_14')">
+                    <div class="paragraph-glow"></div>
+                    <div class="paragraph-image">
+                        <div class="paragraph-number">§ 14</div>
+                        <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🏛️</div>
+                    </div>
+                    <div class="paragraph-title">Развитие культуры Беларуси</div>
+                </div>
+
+                <div class="paragraph-card" onclick="showLeaderboard('paragraph_15')">
+                    <div class="paragraph-glow"></div>
+                    <div class="paragraph-image">
+                        <div class="paragraph-number">§ 15</div>
+                        <div style="background:linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">⚔️</div>
+                    </div>
+                    <div class="paragraph-title">Средневековье</div>
+                </div>
+
+                <div class="paragraph-card" onclick="showLeaderboard('paragraph_16')">
+                    <div class="paragraph-glow"></div>
+                    <div class="paragraph-image">
+                        <div class="paragraph-number">§ 16</div>
+                        <div style="background:linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">👑</div>
+                    </div>
+                    <div class="paragraph-title">Российская Империя</div>
+                </div>
+            </div>
+
+            <!-- Админ панель -->
+            <div class="admin-panel">
+                <button class="admin-btn" onclick="showPasswordModal()">
+                    🛠️ Администрирование
+                </button>
+            </div>
+        </div>
+
+        <!-- Режим таблицы лидеров конкретного параграфа -->
+        <div id="leaderboard-screen" class="screen">
+            <div class="leaderboard-screen">
+                <button class="back-button" onclick="showQuizSelection()">
+                    <span>←</span>
+                    <span>Назад к параграфам</span>
+                </button>
+
+                <div class="leaderboard-header">
+                    <h2 class="page-title" id="quiz-title">Параграф 14</h2>
+                    <div class="best-result-badge" id="best-result-container" style="display: none;">
+                        <div class="best-result-value" id="best-result-value">0/5</div>
+                        <div class="best-result-class" id="best-result-class">11А</div>
+                    </div>
+                </div>
+
+                <div class="leaderboard-container">
+                    <div class="leader-header">
+                        <div>Место</div>
+                        <div>Баллы</div>
+                        <div>Класс</div>
+                        <div>Время</div>
+                    </div>
+                    
+                    <div id="leaders-list">
+                        <!-- Таблица лидеров будет заполнена через JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Админ панель -->
+                <div class="admin-panel">
+                    <button class="admin-btn" onclick="showPasswordModal()">
+                        🛠️ Администрирование
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Модальное окно для ввода пароля -->
+    <div id="password-modal" class="password-modal">
+        <div class="password-content">
+            <h3>Введите пароль администратора</h3>
+            <input type="password" id="admin-password" class="password-input" placeholder="Секретный пароль">
+            <div class="password-actions">
+                <button class="btn btn-secondary" onclick="hidePasswordModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="checkAdminPassword()">Подтвердить</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-main">
+                    <div class="footer-logo">
+                        <div class="logo-icon">🏛️</div>
+                        <div class="logo-text">
+                            <h3>Викторины</h3>
+                            <p>История и обществоведение для 11 класса</p>
+                        </div>
+                    </div>
+                    <div class="footer-links">
+                        <div class="link-group">
+                            <h4>Навигация</h4>
+                            <a href="index.html">Главная</a>
+                            <a href="quiz.html">Викторины</a>
+                            <a href="leaders.html">Таблица лидеров</a>
+                        </div>
+                        <div class="link-group">
+                            <h4>Параграфы</h4>
+                            <a href="quiz.html">§ 14. Культура Беларуси</a>
+                            <a href="quiz.html">§ 15. Средневековье</a>
+                            <a href="quiz.html">§ 16. Российская Империя</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="footer-bottom">
+                    <div class="footer-info">
+                        <p>&copy; 2025 - Все права защищены. Викторины.</p>
+                        <p>История и Обществоведение</p>
+                    </div>
+                    <div class="footer-badge">
+                        <div class="badge-icon">🚀</div>
+                        <span>Учиться - это интересно!</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const quizDatabase = {
+            paragraph_14: {
+                title: "§ 14. Развитие культуры Беларуси"
+            },
+            paragraph_15: {
+                title: "§ 15. Средневековье"
+            },
+            paragraph_16: {
+                title: "§ 16. Российская Империя"
+            }
+        };
+
+// 🔥 FIREBASE КОНФИГУРАЦИЯ
+    const firebaseConfig = {
+        apiKey: "AIzaSyDk1oxsi6xZVv1yf_-8SpOk4b1lapgr6bI",
+        authDomain: "quiz-834d2.firebaseapp.com",
+        projectId: "quiz-834d2",
+        storageBucket: "quiz-834d2.firebasestorage.app",
+        messagingSenderId: "287075846771",
+        appId: "1:287075846771:web:e94f93858c2a18a47cb806",
+        measurementId: "G-TSEBHY1WNX"
+    };
+
+    // Инициализация Firebase
+    try {
+        firebase.initializeApp(firebaseConfig);
+    } catch (error) {
+        console.log('Firebase уже инициализирован');
+    }
+
+    const db = firebase.firestore();
+    const ADMIN_PASSWORD = "22072024";
+
+    // 📡 Функции для работы с Firebase
+    async function getResultsFromFirebase(quizId = null) {
+        try {
+            console.log('🔍 Загрузка результатов для викторины:', quizId);
+            
+            let query = db.collection('quizResults');
+            
+            if (quizId) {
+                query = query.where('quizId', '==', quizId);
+            }
+            
+            const snapshot = await query.get();
+            const results = [];
+            
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                results.push({
+                    id: doc.id,
+                    ...data
+                });
+            });
+            
+            console.log('📊 Загружено результатов из Firebase:', results.length, results);
+            
+            // Сортируем результаты: сначала по баллам (по убыванию), затем по времени (по возрастанию)
+            results.sort((a, b) => {
+                if (b.score !== a.score) {
+                    return b.score - a.score; // больше баллов - выше
+                }
+                return a.time - b.time; // меньше времени - выше при равных баллах
+            });
+            
+            return results;
+        } catch (error) {
+            console.error('❌ Ошибка загрузки из Firebase:', error);
+            return getResultsFromLocalStorage(quizId);
+        }
+    }
+
+    // 💾 Локальное хранилище как резерв
+    function getResultsFromLocalStorage(quizId = null) {
+        try {
+            const leaders = JSON.parse(localStorage.getItem('quizLeaders') || '[]');
+            const formattedLeaders = leaders.map(item => ({
+                playerClass: item.name,
+                score: item.score,
+                time: item.time,
+                quizId: item.quizId,
+                quizTitle: item.quiz,
+                timestamp: item.timestamp
+            }));
+            
+            if (quizId) {
+                return formattedLeaders.filter(leader => leader.quizId === quizId);
+            }
+            return formattedLeaders;
+        } catch (e) {
+            console.error('Ошибка загрузки локальных данных:', e);
+            return [];
+        }
+    }
+
+    // 🎯 Основные функции
+    function showQuizSelection() {
+        document.getElementById('quiz-selection-screen').classList.add('active');
+        document.getElementById('leaderboard-screen').classList.remove('active');
+    }
+
+    function showLeaderboard(quizId) {
+        document.getElementById('quiz-selection-screen').classList.remove('active');
+        document.getElementById('leaderboard-screen').classList.add('active');
+        
+        const quiz = quizDatabase[quizId];
+        document.getElementById('quiz-title').textContent = quiz.title;
+        
+        loadLeadersForQuiz(quizId);
+    }
+
+    // 🔄 ФУНКЦИЯ ЗАГРУЗКИ РЕЗУЛЬТАТОВ
+    async function loadLeadersForQuiz(quizId) {
+        const container = document.getElementById('leaders-list');
+        const bestResultContainer = document.getElementById('best-result-container');
+        
+        // Показываем загрузку
+        container.innerHTML = `
+            <div class="no-results">
+                <h3>⏳ Загрузка результатов...</h3>
+                <p>Пожалуйста, подождите</p>
+            </div>
+        `;
+        
+        try {
+            console.log('🔄 Начало загрузки лидеров для:', quizId);
+            
+            // Загружаем данные из Firebase
+            const leaders = await getResultsFromFirebase(quizId);
+            
+            console.log('📈 Обработка результатов:', leaders);
+            
+            if (leaders.length > 0) {
+                // Показываем лучший результат
+                const bestResult = leaders[0];
+                document.getElementById('best-result-value').textContent = bestResult.score + '/5';
+                document.getElementById('best-result-class').textContent = bestResult.playerClass;
+                bestResultContainer.style.display = 'flex';
+                console.log('🏆 Лучший результат:', bestResult);
+            } else {
+                bestResultContainer.style.display = 'none';
+                console.log('ℹ️ Нет результатов для отображения');
+            }
+            
+            if (leaders.length === 0) {
+                container.innerHTML = `
+                    <div class="no-results">
+                        <h3>😔 Пока нет результатов</h3>
+                        <p>Будьте первым, кто пройдет этот параграф!</p>
+                        <a href="quiz.html" class="btn btn-primary">Пройти параграф</a>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Берем топ-10 результатов
+            const topLeaders = leaders.slice(0, 10);
+            
+            // Находим лучшие результаты для каждого класса
+            const bestResultsByClass = {};
+            leaders.forEach(leader => {
+                if (!bestResultsByClass[leader.playerClass] || 
+                    leader.score > bestResultsByClass[leader.playerClass].score ||
+                    (leader.score === bestResultsByClass[leader.playerClass].score && 
+                     leader.time < bestResultsByClass[leader.playerClass].time)) {
+                    bestResultsByClass[leader.playerClass] = leader;
+                }
+            });
+            
+            console.log('🎯 Лучшие результаты по классам:', bestResultsByClass);
+            
+            let html = '';
+            topLeaders.forEach((leader, index) => {
+                const rankClass = `rank-${index + 1}`;
+                let itemClass = '';
+                let rankIcon = '';
+                let badge = '';
+         
+                const isBestForClass = bestResultsByClass[leader.playerClass] === leader;
+                
+                if (index === 0) {
+                    itemClass = 'top-result gold';
+                    rankIcon = '🥇';
+                    if (isBestForClass) {
+                        badge = '<span class="best-badge">лучший</span>';
+                    }
+                } else if (index === 1) {
+                    itemClass = 'top-result silver';
+                    rankIcon = '🥈';
+                    if (isBestForClass) {
+                        badge = '<span class="normas-badge">нормас</span>';
+                    }
+                } else if (index === 2) {
+                    itemClass = 'top-result';
+                    rankIcon = '🥉';
+                    if (isBestForClass) {
+                        badge = '<span class="normas-badge">нормас</span>';
+                    }
+                } else {
+                    if (isBestForClass) {
+                        itemClass = 'top-result';
+                        badge = '<span class="normas-badge">нормас</span>';
+                    }
+                }
+                
+                html += `
+                    <div class="leader-item ${itemClass}">
+                        <div class="rank ${rankClass}">
+                            <div class="rank-number">${index + 1}</div>
+                            <div class="rank-icon">${rankIcon}</div>
+                        </div>
+                        <div class="score-info">
+                            ${leader.score}/5 баллов
+                            ${badge}
+                        </div>
+                        <div class="class-info">${leader.playerClass}</div>
+                        <div class="time-info">${leader.time} сек</div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            console.log('✅ Таблица лидеров успешно обновлена');
+            
+        } catch (error) {
+            console.error('❌ Ошибка загрузки таблицы лидеров:', error);
+            container.innerHTML = `
+                <div class="no-results">
+                    <h3>❌ Ошибка загрузки</h3>
+                    <p>Попробуйте обновить страницу или проверьте подключение к интернету</p>
+                    <div style="margin-top: 1rem;">
+                        <button class="btn btn-secondary" onclick="loadLeadersForQuiz('${quizId}')">Повторить</button>
+                        <a href="quiz.html" class="btn btn-primary" style="margin-left: 1rem;">Вернуться к викторинам</a>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // 🛠 Административные функции
+    function showPasswordModal() {
+        document.getElementById('password-modal').classList.add('active');
+        document.getElementById('admin-password').focus();
+    }
+
+    function hidePasswordModal() {
+        document.getElementById('password-modal').classList.remove('active');
+        document.getElementById('admin-password').value = '';
+    }
+
+    function checkAdminPassword() {
+        const password = document.getElementById('admin-password').value;
+        
+        if (password === ADMIN_PASSWORD) {
+            hidePasswordModal();
+            showAdminOptions();
+        } else {
+            alert('❌ Неверный пароль!');
+            document.getElementById('admin-password').value = '';
+            document.getElementById('admin-password').focus();
+        }
+    }
+
+    async function showAdminOptions() {
+        const action = confirm('👑 Вы вошли как администратор. Хотите очистить ВСЕ результаты рейтинга?');
+        
+        if (action) {
+            const confirmAction = confirm('🚨 ВНИМАНИЕ! Это действие невозможно отменить. Все результаты будут безвозвратно удалены. Продолжить?');
+            
+            if (confirmAction) {
+                try {
+                    // Удаляем из Firebase
+                    const snapshot = await db.collection('quizResults').get();
+                    const batch = db.batch();
+                    
+                    snapshot.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    
+                    await batch.commit();
+                    
+                    // Удаляем из localStorage
+                    localStorage.removeItem('quizLeaders');
+                    
+                    alert('✅ Все результаты рейтинга были успешно очищены!');
+                    location.reload();
+                } catch (error) {
+                    console.error('Ошибка очистки Firebase:', error);
+                    alert('⚠️ Ошибка при очистке Firebase. Локальные данные очищены.');
+                    localStorage.removeItem('quizLeaders');
+                    location.reload();
+                }
+            }
+        }
+    }
+
+    // 🚀 Инициализация
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Страница таблицы лидеров загружена');
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const quizId = urlParams.get('quiz');
+        
+        if (quizId && quizDatabase[quizId]) {
+            console.log('📖 Автоматический переход к викторине:', quizId);
+            showLeaderboard(quizId);
+        } else {
+            console.log('ℹ️ Режим выбора викторины');
+        }
+
+        const particles = document.querySelectorAll('.particle');
+        particles.forEach((particle, index) => {
+            particle.style.animationDelay = `${index * 2}s`;
+        });
+
+        document.getElementById('password-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hidePasswordModal();
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                hidePasswordModal();
+            }
+        });
+        
+        // Проверяем наличие данных в Firebase
+        console.log('🔍 Проверка подключения к Firebase...');
+        db.collection('quizResults').get().then(snapshot => {
+            console.log(`📊 Всего результатов в базе: ${snapshot.size}`);
+        }).catch(error => {
+            console.error('❌ Ошибка подключения к Firebase:', error);
+        });
+    });
+    // Проверка доступа к Firebase
+db.collection('quizResults').get().then(snapshot => {
+    console.log('✅ Firebase доступен! Документов:', snapshot.size);
+    snapshot.forEach(doc => {
+        console.log('📄', doc.id, doc.data());
+    });
+}).catch(error => {
+    console.error('❌ Ошибка Firebase:', error);
+});
+</script>
+</body>
+</html>
